@@ -1,15 +1,11 @@
 """
-Implementation of the IS-Label algorithm
-
-Assumptions:
-- Independent sets are chosen randomly with a given maximum set size.
-  Not necessarily the best method. Should be investigated.
+Implementation of the IS-Label (Independent Set based labels) algorithm
 
 Todo:
-- Investigate optimal IS generation
 - gen_label
 - Change lists to np arrays (would require calculating upper bounds and
   dealing with unset values, but perhaps worth it)
+- Save generated labels
 
 """
 import numpy as np
@@ -34,9 +30,11 @@ Adds all necessary aumenting edges to the graph after removing the
 given node.
 '''
 def add_augmenting_edges(network, adj):
-	for n, m in adj[1], adj[1]:
-		if n < m:
-			augment(network, n, adj[0], m)
+	#print(adj)
+	for n in adj[1]:
+		for m in adj[1]:
+			if n < m:
+				augment(network, n, adj[0], m)
 
 '''
 Generates a list of adjacent nodes for each node in the network.
@@ -45,10 +43,11 @@ of the nodes (or: the number of adjacent nodes in each list).
 '''
 def sorted_adjs(network):
 	adjacents = list()
-	for i in np.arange(network.number_of_nodes()):
+	for i in network.nodes():
 		for j in np.arange(len(adjacents) + 1):
-			if j > len(adjacents) or len(network[i]) < len(adjacents[j][1]):
-				adjacents.insert(j, (i, network[i]))
+			if j >= len(adjacents) or len(network.neighbors(i)) < len(adjacents[j][1]):
+				adjacents.insert(j, (i, network.neighbors(i)))
+				break
 	
 	return adjacents
 
@@ -65,11 +64,11 @@ def gen_level(network):
 	for node, adj in gprime:
 		if not node in lprime:
 			new_level.append(node)
-			adjacents.append(network[node])
+			adjacents.append((node, network.neighbors(node)))
 			for m in network[node]:
 				if not m in lprime:
 					lprime.append(m)
-		
+	
 	return [new_level, adjacents]
 
 '''
@@ -78,6 +77,7 @@ Corresponds to G_i in the paper.
 '''
 def gen_subnet(network, level, adjacents):
 	subnet = network.copy()
+	#print(adjacents)
 	for adj in adjacents:
 		add_augmenting_edges(subnet, adj)
 		
@@ -89,7 +89,7 @@ def gen_subnet(network, level, adjacents):
 Generates the hierarchy required to calculate the labels for each node.
 '''
 def gen_hierarchy(network):
-	adj = [network[0]]
+	adj = [network.neighbors(0)]
 	levels = list()
 	subnets = [network]
 	while len(adj) > 0:
@@ -103,7 +103,17 @@ def gen_hierarchy(network):
 '''
 Generates the label of the given node using the given hierarchy
 '''
-def gen_label(network, hierarchy, node):
+def gen_label(subnets, levels, node):
+	return
+	
+def gen_labels(subnets, levels):
+	return
+	
+def preprocess(network):
+	[levels, subnets] = gen_hierarchy(network)
+	return gen_labels(levels, subnets)
+	
+def save_labels(labels):
 	return
 	
 	
@@ -147,6 +157,11 @@ def main():
 	else:
 		network = nx.read_edgelist(args.fin, data=data)
 		print("Successfully loaded undirected network.")
+	
+	network = nx.convert_node_labels_to_integers(network)
+	
+	labels = preprocess(network)
+	save_labels(labels)
 
 
 if __name__ == "__main__":
