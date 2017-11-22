@@ -18,36 +18,25 @@ import argparse as ap
 
 
 '''
-Returns the weight of the edge (n, m) in the highest level less than
-the parameter level. Returns None if the edge does not exist.
-'''
-def get_weight(network, n, m, level):
-	for i in np.arange(level)[::-1]:
-		if i in network[n][m]:
-			return network[n][m][i]
-	return None
-
-'''
 Adds an augmenting edge (n, m) if necessary.
 '''
-def augment(network, level, n, m, o):
-	new_dist = get_weight(network, n, m, level)
-	new_dist += get_weight(network, m, o, level)
+def augment(network, n, m, o):
+	new_dist = network[n][m]['weight']
+	new_dist += network[m][o]['weight']
 	
-	if get_weight(network, n, o, level) > new_dist:
-		network[n][o][level] = new_dist
+	if network.has_edge(n, o) and network[n][o]['weight'] > new_dist:
+		network[n][o]['weight'] = new_dist
 	else:
-		network.add_edge(n, o, attr_dict={level : new_dist})
+		network.add_edge(n, o, attr_dict={'weight' : new_dist})
 
 '''
 Adds all necessary aumenting edges to the graph after removing the
-given level.
+given node.
 '''
-def add_augmenting_edges(network, level):
-	for node in level:
-		for n, m in network[node], network[node]:
-			if n < m:
-				augment(network, level, n, node, m)
+def add_augmenting_edges(network, adj):
+	for n, m in adj[1], adj[1]:
+		if n < m:
+			augment(network, n, adj[0], m)
 
 '''
 Generates a list of adjacent nodes for each node in the network.
@@ -82,10 +71,18 @@ def gen_level(network):
 					lprime.append(m)
 		
 	return [new_level, adjacents]
-	
+
+'''
+Generates the remaining network after removing the passed level.
+Corresponds to G_i in the paper.
+'''
 def gen_subnet(network, level, adjacents):
 	subnet = network.copy()
-	
+	for adj in adjacents:
+		add_augmenting_edges(subnet, adj)
+		
+	for node in level:
+		subnet.remove_node(node)
 	return subnet
 
 '''
@@ -134,7 +131,7 @@ def parse_args():
 def main():
 	args = parse_args()
 	if args.weight:
-		data = ((0, float),)
+		data = (('weight', float),)
 	else:
 		data = None
 		
