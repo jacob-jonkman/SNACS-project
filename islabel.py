@@ -26,15 +26,15 @@ def augment(network, n, m, o):
 		network.add_edge(n, o, attr_dict={'weight' : new_dist})
 
 '''
-Adds all necessary aumenting edges to the graph after removing the
-given node.
+Adds all necessary aumenting edges to the graph between the provided
+nodes.
 '''
-def add_augmenting_edges(network, adj):
-	#print(adj)
-	for n in adj[1]:
-		for m in adj[1]:
+def add_augmenting_edges(network, node, neighbours):
+	#print(nodes)
+	for n in neighbours:
+		for m in neighbours:
 			if n < m:
-				augment(network, n, adj[0], m)
+				augment(network, n, node, m)
 
 '''
 Generates a list of adjacent nodes for each node in the network.
@@ -79,7 +79,7 @@ def gen_subnet(network, level, adjacents):
 	subnet = network.copy()
 	#print(adjacents)
 	for adj in adjacents:
-		add_augmenting_edges(subnet, adj)
+		add_augmenting_edges(subnet, adj[0], adj[1])
 		
 	for node in level:
 		subnet.remove_node(node)
@@ -99,19 +99,50 @@ def gen_hierarchy(network):
 		subnets.append(neti)
 		
 	return levels, subnets
-	
+
 '''
-Generates the label of the given node using the given hierarchy
+Initialises the label of the given node
 '''
-def gen_label(subnets, levels, node):
-	return
+def init_label(node, subnet):
+	label = {node : 0}
+	for u in subnet.neighbors(node):
+		label[u] = subnet[node][u]['weight']
+	return label
+
+'''
+Initialises the labels of all nodes in the network
+'''
+def init_labels(subnets, levels):
+	labels = dict()
+	for i in np.arange(len(subnets)):
+		for node in levels[i]:
+			labels[node] = init_label(node, subnets[i])
 	
-def gen_labels(subnets, levels):
-	return
-	
+	return labels
+
+'''
+Generates the labels of all the nodes and returns these
+'''
+def gen_labels(labels, levels, network):
+	for i in np.arange(len(levels) - 1)[::-1]:
+		for v in levels[i]:
+			for u in levels[i + 1]:
+				if u in labels[v]:
+					for w, val in labels[u].iteritems():
+						if not w in labels[v]:
+							labels[v][w] = labels[v][u] + labels[u][w]
+						else
+							labels[v][w] = min(labels[v][w], labels[v][u] + labels[u][w])
+	return labels
+
+'''
+Calls all functions necessary for the preprocessing of the network
+Returns the labels, which can then be saved to disk
+'''
 def preprocess(network):
 	[levels, subnets] = gen_hierarchy(network)
-	return gen_labels(levels, subnets)
+	labels = init_labels(subnets, levels)
+	return gen_labels(labels, levels, network)
 	
 def save_labels(labels):
 	return
