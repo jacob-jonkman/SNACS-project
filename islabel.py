@@ -58,6 +58,7 @@ Such a level corresponds to an L_i in the paper.
 def gen_level(network):
 	new_level = list()
 	gprime = sorted_adjs(network)
+	print(gprime)
 	lprime = list()
 	adjacents = list()
 	
@@ -95,7 +96,7 @@ def gen_hierarchy(network):
 	while len(adj) > 0:
 		[level, adj] = gen_level(subnets[-1])
 		levels.append(level)
-		neti = gen_subnet(subnets[-1], level, adj)
+		neti = gen_subnet(subnets[-1], level, adj)#check aug edges
 		subnets.append(neti)
 		
 	return levels, subnets
@@ -114,14 +115,16 @@ Initialises the labels of all nodes in the network
 '''
 def init_labels(subnets, levels):
 	labels = dict()
-	for i in np.arange(len(subnets)):
+	for i in np.arange(len(levels)):
+		print(i, len(subnets), len(levels), levels[i])
 		for node in levels[i]:
 			labels[node] = init_label(node, subnets[i])
 	
 	return labels
 
 '''
-Generates the labels of all the nodes and returns these
+Generates the labels of all the nodes via top-down vertex labeling and
+returns these (requires initialised labels)
 '''
 def gen_labels(labels, levels, network):
 	for i in np.arange(len(levels) - 1)[::-1]:
@@ -131,7 +134,7 @@ def gen_labels(labels, levels, network):
 					for w, val in labels[u].iteritems():
 						if not w in labels[v]:
 							labels[v][w] = labels[v][u] + labels[u][w]
-						else
+						else:
 							labels[v][w] = min(labels[v][w], labels[v][u] + labels[u][w])
 	return labels
 
@@ -141,10 +144,12 @@ Returns the labels, which can then be saved to disk
 '''
 def preprocess(network):
 	[levels, subnets] = gen_hierarchy(network)
+	print(levels, [net.nodes() for net in subnets])
 	labels = init_labels(subnets, levels)
 	return gen_labels(labels, levels, network)
 	
 def save_labels(labels):
+	print(labels)
 	return
 	
 	
@@ -188,6 +193,7 @@ def main():
 	else:
 		network = nx.read_edgelist(args.fin, data=data)
 		print("Successfully loaded undirected network.")
+		print([(n, network.neighbors(n)) for n in network.nodes()])
 	
 	network = nx.convert_node_labels_to_integers(network)
 	
