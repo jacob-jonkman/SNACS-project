@@ -2,10 +2,9 @@
 Implementation of the IS-Label (Independent Set based labels) algorithm
 
 Todo:
-- gen_label
 - Change lists to np arrays (would require calculating upper bounds and
   dealing with unset values, but perhaps worth it)
-- Save generated labels
+- Look into optimising label generation
 
 """
 from __future__ import print_function
