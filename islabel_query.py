@@ -16,27 +16,37 @@ def initq(graph, toplevel, labels, node):
 		queue.push((key, val))
 	return queue
 	
-def query_formula(toplevel, labels, source, target):
+'''
+Distance calculation via formula (used when labels intersect)
+'''
+def query_formula(labels, source, target):
 	intersection = [v for v in labels[source] if v in labels[target]]
-	if len(intersection) == 0:
-		return None
-		
 	
+	mindist = float('inf')
+	for node in intersection:
+		dist = labels[source][node] + labels[target][node]
+		mindist = min(mindist, dist)
+		
+	return minres
 
 '''
 Estimate distance via Label-based bi-Dijkstra Search
 '''
-def query(toplevel, labels, source, target):
-	result = query_formula(toplevel, labels, source, target)
-	if result != None:
-		return result
-	
+def bi_dijkstra(toplevel, labels, source, target):
 	forwardq = initq(graph, toplevel, labels, source)
 	reverseq = initq(graph, toplevel, labels, target)
 	
-	#dostuff
-	
-	return result
+	return res
+
+'''
+Execute distance estimation query
+'''
+def query(toplevel, labels, source, target):
+	result = query_formula(labels, source, target)
+	if result != float('inf'):
+		return result
+	else
+		return bi_dijkstra(toplevel, labels, source, target)
 	
 '''
 Loads the labels and the top level of the graph from the given file name
