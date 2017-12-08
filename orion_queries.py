@@ -2,7 +2,7 @@ import numpy as np
 import networkx as nx
 import math
 
-k = 100
+k = 3000
 
 # Use Dijkstra's algorithm to compute distance from all nodes to all landmark nodes
 def find_distances(nodes, G):
@@ -25,7 +25,7 @@ def euclidean_distances(nodes, coordinates):
 	
 	for i in np.arange(k):
 		for j in np.arange(k):
-			distances[i,j] = round(math.sqrt(sum((coordinates[i,:] - coordinates[j,:])**2)))
+			distances[i,j] = math.sqrt(sum((coordinates[i,:] - coordinates[j,:])**2))
 	
 	return distances
 	
@@ -34,13 +34,13 @@ def estimate_diameter(coordinates):
 	
 	for i in np.arange(k):
 		for j in np.arange(k):
-			euclideans[i,j] = round(math.sqrt(sum((coordinates[i,:] - coordinates[j,:])**2)))
+			euclideans[i,j] = math.sqrt(sum((coordinates[i,:] - coordinates[j,:])**2))
 	
 	return np.max(euclideans)
 
 def main():
-	coordinates = np.load("coordinates.npy")	
-	print(coordinates.shape)
+	coordinates = np.load("coordinates_facebook_small.npy")	
+	print(coordinates)
 	
 	np.random.seed(42)
 	#G = nx.gnm_random_graph(200, 1000, seed=42, directed=False)
@@ -50,11 +50,11 @@ def main():
 	nodes = np.random.permutation(G.nodes())[:k]
 
 	# Compute euclidean distance and actual distance #
-	distances = find_distances(nodes, G)
-	euclidean = euclidean_distances(nodes, coordinates)
+	#distances = find_distances(nodes, G)
+	#euclidean = euclidean_distances(nodes, coordinates)
 	
-	print(np.sum(abs(distances-euclidean))/k**2)
-	print(estimate_diameter(coordinates))
+	#print("relative error:", np.sum(abs(distances-euclidean))/k**2)
+	print("diameter:", estimate_diameter(coordinates))
 
 if __name__ == "__main__":
 	main()
