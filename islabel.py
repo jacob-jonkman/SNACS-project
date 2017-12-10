@@ -8,11 +8,13 @@ Todo:
 
 """
 from __future__ import print_function
+from __future__ import division
 
 import numpy as np
 import networkx as nx
 import argparse as ap
 import pickle as pi
+import time as t
 
 
 '''
@@ -47,7 +49,7 @@ def sorted_adjs(network):
 	adjacents = list()
 	for i in network.nodes():
 		for j in np.arange(len(adjacents) + 1):
-			if j >= len(adjacents) or len(network.neighbors(i)) < len(adjacents[j][1]):
+			if j >= len(adjacents) or network.degree(i) < network.degree(adjacents[j][0]):
 				adjacents.insert(j, (i, network.neighbors(i)))
 				break
 	
@@ -85,21 +87,27 @@ def gen_subnet(network, level, adjacents):
 	for node in level:
 		subnet.remove_node(node)
 	return subnet
+	
+def sigmacutoff(subnets, sigma):
+	if len(subnets) < 2:
+		return False
+	return nx.number_of_nodes(subnets[-1]) / nx.number_of_nodes(subnets[-2]) > sigma
 
 '''
 Generates the hierarchy required to calculate the labels for each node.
 '''
-def gen_hierarchy(network):
+def gen_hierarchy(network, sigma):
 	adj = [network.neighbors(0)]
 	levels = list()
 	subnets = [network]
-	while len(adj) > 0:
+	while len(adj) > 0 and not sigmacutoff(subnets, sigma):
+		print(len(subnets), nx.number_of_nodes(subnets[-1]))
 		[level, adj] = gen_level(subnets[-1])
 		levels.append(level)
 		neti = gen_subnet(subnets[-1], level, adj)
 		subnets.append(neti)
 		
-	return levels, subnets
+	return levels, [net for net in subnets if net.number_of_nodes() > 0]
 
 '''
 Initialises the label of the given node
@@ -126,7 +134,9 @@ Generates the labels of all the nodes via top-down vertex labeling and
 returns these (requires initialised labels)
 '''
 def gen_labels(labels, levels, network):
+	print("Generating labels. Level:")
 	for i in np.arange(len(levels) - 1)[::-1]:
+		print(i)
 		for v in levels[i]:
 			for l in levels[i + 1:]:
 				for u in l:
@@ -142,15 +152,17 @@ def gen_labels(labels, levels, network):
 Calls all functions necessary for the preprocessing of the network
 Returns the labels, which can then be saved to disk
 '''
-def preprocess(network):
-	[levels, subnets] = gen_hierarchy(network)
+def preprocess(network, sigma):
+	[levels, subnets] = gen_hierarchy(network, sigma)
+	print("Hierarchy generated!")
 	labels = init_labels(subnets, levels)
-	return gen_labels(labels, levels, network)
+	print("Labels initialised!")
+	return gen_labels(labels, levels, network), subnets[-1]
 	
-def save_labels(labels, filen):
-	print("Saving: ", labels)
+def save_labels(labels, toplevel, filen):
+	print("Saving: ", labels, nx.nodes(toplevel))
 	f = open(filen, "w")
-	pi.dump(labels, f)
+	pi.dump((labels, toplevel), f)
 	f.close()
 	return
 	
@@ -175,33 +187,54 @@ def parse_args():
 	                    action='store_true')
 	parser.add_argument('--seed',
 											help='Seed for the random number generator')
+	parser.add_argument('-sigma',
+											help='Parameter controlling when the hierarchy ' +
+											'generation terminates',
+											type=float)
+	parser.add_argument('--adjlist',
+											help='Switch from read_edgelist to read_adjlist',
+											action='store_true')
 	return parser.parse_args()
 
 
 def main():
 	args = parse_args()
-	if args.weight:
-		data = (('weight', float),)
-	else:
-		data = None
-		
+	data = (('weight', float),)
+	if args.sigma == None:
+		args.sigma = 1.0
+	
 	if args.seed:
 		init_rand(seed)
 	else:
 		init_rand(0)
 		
-	if(args.directed):
-		network = nx.read_edgelist(args.fin,
-															 create_using=nx.DiGraph(), data=data)
+	if args.directed:
+		if args.adjlist:
+			network = nx.read_adjlist(args.fin,
+																create_using=nx.DiGraph())
+		else:
+			network = nx.read_edgelist(args.fin,
+																 create_using=nx.DiGraph(), data=data)
 		print("Successfully loaded directed network.")
 	else:
-		network = nx.read_edgelist(args.fin, data=data)
+		if args.adjlist:
+			network = nx.read_adjlist(args.fin)
+		else:
+			network = nx.read_edgelist(args.fin, data=data)
 		print("Successfully loaded undirected network.")
+	
+	if not args.weight:
+		for x, y in network.edges():
+			network[x][y]['weight'] = 1
+	
 	
 	network = nx.convert_node_labels_to_integers(network)
 	
-	labels = preprocess(network)
-	save_labels(labels, args.fout)
+	start = t.time()
+	[labels, toplevel] = preprocess(network, args.sigma)
+	save_labels(labels, toplevel, args.fout)
+	end = t.time()
+	print("Time elapsed:", end - start)
 
 
 if __name__ == "__main__":
