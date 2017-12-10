@@ -1,9 +1,9 @@
 import networkx as nx
 import numpy as np
+import argparse as ap
 import math
 from scipy.optimize import fmin
 from scipy.spatial.distance import euclidean
-import sys
 from time import time
 
 num_landmarks = 100
@@ -26,20 +26,20 @@ def compute_landmark_distances(landmarks, num_nodes, G):
 	distances = np.zeros((num_landmarks, num_nodes))
 	i=0
 	for landmark in landmarks:
-		#print(i)
 		dists = nx.shortest_path_length(G, landmark[0])
 		sorted_dists = np.array(sorted(dists.items(), key=lambda x:int(x[0])))
 		distances[i,:] = sorted_dists[:,1]
 		i+=1
 	return distances
 
-	
+
 # Splits the distance matrix into two matrices: 
 # -landmarkcols: distance from landmarks to other landmarks
 # -regularcols: distance from landmarks to regular nodes
 def split_distances(all_distances, landmark_indices, regular_indices):
+	print(all_distances.shape)
 	landmarkcols = all_distances[:,landmark_indices]
-	regularcols = all_distances[:,regular_indices]	
+	regularcols = all_distances[:,regular_indices]
 	return landmarkcols, regularcols
 
 	
@@ -70,7 +70,6 @@ def diff_second(second_coordinates, first_coordinates, distances):
 			sums = (second_coordinates[i,:]-first_coordinates[j,:])**2
 			euclidean = math.sqrt(sum(sums))
 			difference += np.abs(distances[i,j]-euclidean)
-	#print(difference)
 	return difference
 
 
@@ -80,34 +79,12 @@ def second_coordinates(first_coordinates, distances):
 	return fmin(func=diff_second, x0=coordinates, args=(first_coordinates,distances,), xtol=xtol, ftol=ftol, maxfun=maxfun)
 
 
-# Objective function to be minimized by fmin used in regular_coordinates()
-def diff_regular(coordinates, landmark_coordinates, distances, num_nodes):
-	difference = 0
-	coordinates = coordinates.reshape(num_nodes-num_landmarks, D)
-	#print(landmark_coordinates.shape)
-	anchors = landmark_coordinates[np.random.permutation(num_landmarks)[:initial],:]
-	#print(anchors.shape)
-	
-	for i in np.arange(num_landmarks):
-		for j in np.arange(num_nodes-num_landmarks):
-			sums = (coordinates[j,:] - landmark_coordinates[i,:])**2
-			euclid = math.sqrt(sum(sums))
-			#euclid = euclidean(coordinates[i,:], landmark_coordinates[j,:])
-			difference += np.abs(distances[i,j] - euclid)
-	#print("euclidean:", sys.getsizeof(euclidean), "difference:", sys.getsizeof(difference))
-	#print("coordinates in objective func:", sys.getsizeof(coordinates))
-	#print(difference)
-	#del coordinates
-	return difference
-
-
 def diff_regular_per_node(coordinates, landmark_coordinates, distances, nodenr):
 	difference = 0	
 	for i in np.arange(num_landmarks):
 		sums = (coordinates - landmark_coordinates[i,:])**2
 		euclid = math.sqrt(sum(sums))
 		difference += np.abs(distances[i] - euclid)
-	#print("node:", nodenr, "difference:", difference)
 	return difference
 
 
@@ -118,19 +95,44 @@ def regular_coordinates(landmark_coordinates, distances, num_nodes):
 		print("calibrating node:", i)
 		coordinates[i,:] = fmin(func=diff_regular_per_node, x0=coordinates[1,:], args=(landmark_coordinates,distances[:,i],i,), xtol=xtol, ftol=ftol, maxfun=maxfun, maxiter=maxiter)
 	return coordinates
-	
-	#return fmin(func=diff_regular, x0=coordinates, args=(landmark_coordinates,distances,num_nodes,), xtol=xtol, ftol=ftol, maxfun=maxfun, maxiter=maxiter)
 
-def main():
-	np.random.seed(42)
+def main():	
+	t = time()
 	
-	#G = nx.gnm_random_graph(200, 1000, seed=42, directed=False)
-	G = nx.read_edgelist("facebook_combined.txt")
+	parser = ap.ArgumentParser(description='Run orion preprocessing.')
+	parser.add_argument('fin',
+											help='path to the file containing the network')
+	parser.add_argument('fout',
+											help='path to the .npy-file to write the labels')
+	parser.add_argument('--seed',
+											help='Random seed to be used',
+											default=42)
+	parser.add_argument('--xopt',
+											help='xopt to use in nelder-mead',
+											default=1)
+	parser.add_argument('--fopt',
+											help='fopt to use in nelder-mead',
+											default=1)
+	args = parser.parse_args()
+	
+	np.random.seed(args.seed)
+	
+	G = nx.read_edgelist(args.fin)
+	tot_nodes = G.number_of_nodes()
+	tot_edges = G.number_of_edges()
+	
+	Gcc=sorted(nx.connected_component_subgraphs(G), key = len, reverse=True)
+	G=Gcc[0]
+	graph = nx.to_dict_of_lists(G)
+	connected_nodes = graph.keys()
+	
 	num_nodes = G.number_of_nodes()
 	num_edges = G.number_of_edges()
 	print("Succesfully loaded network with", num_nodes, "nodes and", num_edges, "edges.")
 	
-	t = time()
+	mapping = dict(zip(connected_nodes, np.arange(num_nodes)))
+	print(mapping)
+	G = nx.relabel_nodes(G, mapping)
 	
 	# Split the nodes in landmark nodes and regular nodes, and find the corresponding indices
 	landmarks, regular_nodes = choose_initial_landmarks(G)
@@ -139,9 +141,8 @@ def main():
 	
 	# Find the distance from each landmark nodes to all other nodes
 	all_distances = compute_landmark_distances(landmarks, num_nodes, G)
+	print(all_distances.shape)
 	landmark_distances, regular_distances = split_distances(all_distances, landmark_indices, regular_indices)
-	del landmark_indices
-	del regular_indices
 	
 	# Start adding the nodes in three steps:
 	# 1: Add the initial landmark nodes
@@ -155,19 +156,16 @@ def main():
 	
 	# Combine landmark coordinates in single array
 	landmark_coords = np.append(first_coords, second_coords).reshape(num_landmarks, D)
-	
-	del first_coords
-	del second_coords
-	
+		
 	print("Start finding coordinates for the", num_nodes-num_landmarks, "regular nodes")
 	regular_coords = regular_coordinates(landmark_coords, regular_distances, num_nodes).reshape(num_nodes-num_landmarks, D)
 	
 	# Combine all coordinates in single array
 	all_coordinates = np.append(landmark_coords, regular_coords).reshape(num_nodes, D)
 	
-	np.save("coordinates_facebook_small.npy", all_coordinates)
+	np.save(args.fout, all_coordinates)
 	
-	print("preprocessing time:", t-time()
+	print("preprocessing time:", time()-t)
 
 
 if __name__ == "__main__":

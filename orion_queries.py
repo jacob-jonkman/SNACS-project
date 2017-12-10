@@ -1,5 +1,6 @@
 import numpy as np
 import networkx as nx
+import argparse as ap
 import math
 
 k = 3000
@@ -39,15 +40,22 @@ def estimate_diameter(coordinates):
 	return np.max(euclideans)
 
 def main():
-	coordinates = np.load("coordinates_facebook_small.npy")	
+
+	parser = ap.ArgumentParser(description='Run orion preprocessing.')
+	parser.add_argument('fin',
+											help='path to the file containing the network coordinates')
+	
+	args = parser.parse_args()
+	
+	coordinates = np.load(args.fin)	
 	print(coordinates)
 	
 	np.random.seed(42)
 	#G = nx.gnm_random_graph(200, 1000, seed=42, directed=False)
-	G = nx.read_edgelist("facebook_combined.txt")
+	#G = nx.read_edgelist("facebook_combined.txt")
 	
 	# Randomly choose k nodes to compare
-	nodes = np.random.permutation(G.nodes())[:k]
+	#nodes = np.random.permutation(G.nodes())[:k]
 
 	# Compute euclidean distance and actual distance #
 	#distances = find_distances(nodes, G)
