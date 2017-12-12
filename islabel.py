@@ -166,10 +166,8 @@ def save_labels(labels, toplevel, filen):
 	f.close()
 	return
 	
-	
 def init_rand(seed):
 	np.random.seed(seed)
-
 
 def parse_args():
 	parser = ap.ArgumentParser(description='Run islabel preprocessing.')
@@ -195,7 +193,6 @@ def parse_args():
 											help='Switch from read_edgelist to read_adjlist',
 											action='store_true')
 	return parser.parse_args()
-
 
 def main():
 	args = parse_args()
@@ -227,15 +224,13 @@ def main():
 		for x, y in network.edges():
 			network[x][y]['weight'] = 1
 	
-	
-	network = nx.convert_node_labels_to_integers(network)
+	network = nx.convert_node_labels_to_integers(network, ordering="sorted")
 	
 	start = t.time()
 	[labels, toplevel] = preprocess(network, args.sigma)
 	save_labels(labels, toplevel, args.fout)
 	end = t.time()
 	print("Time elapsed:", end - start)
-
 
 if __name__ == "__main__":
 	main()
