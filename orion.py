@@ -5,14 +5,15 @@ import math
 from scipy.optimize import fmin
 from scipy.spatial.distance import euclidean
 from time import time
+from sklearn.metrics.pairwise import euclidean_distances
 
 num_landmarks = 100
 initial = 16
-D = 10
+D = 15
 xtol = 1
 ftol = 1
-maxfun = 10000
-maxiter = 1000
+maxfun = 100000
+maxiter = 100000
 
 # Find the k nodes with highest degree centrality
 def choose_initial_landmarks(G):
@@ -46,54 +47,45 @@ def split_distances(all_distances, landmark_indices, regular_indices):
 # Objective function to be minimized by fmin used in initial_coordinates()
 def diff_initial(coordinates, distances):
 	coordinates = coordinates.reshape(initial, D)
-	difference = 0
-	for i in np.arange(initial):
-		for j in np.arange(initial):
-			summed = (coordinates[i,:] - coordinates[j,:])**2
-			euclidean = math.sqrt(sum(summed))
-			difference += np.abs(distances[i,j]-euclidean)
+	euclids = euclidean_distances(coordinates)
+	difference = np.abs(np.sum(euclids-distances[:,initial]))
+	print(difference)
 	return difference
 
 
 # Apply simplex downhill algorithm to optimize coordinates of first 16 landmarks
 def initial_coordinates(landmarks, landmark_distances):
-	coordinates = np.random.rand(initial, D)*2
+	coordinates = (np.random.rand(initial, D))*2
 	return fmin(func=diff_initial, x0=coordinates, args=(landmark_distances,), xtol=xtol, ftol=ftol, maxfun=maxfun)
 
 
 # Objective function to be minimized by fmin used in second_coordinates()
 def diff_second(second_coordinates, first_coordinates, distances):
 	second_coordinates = second_coordinates.reshape(num_landmarks-initial, D)
-	difference = 0
-	for i in np.arange(len(second_coordinates)):
-		for j in np.arange(len(first_coordinates)):
-			sums = (second_coordinates[i,:]-first_coordinates[j,:])**2
-			euclidean = math.sqrt(sum(sums))
-			difference += np.abs(distances[i,j]-euclidean)
+	euclids = euclidean_distances(second_coordinates, first_coordinates)
+	difference = np.abs(np.sum(euclids-distances[:,:initial]))	
+	print(difference)
 	return difference
 
 
 # Find coordinates of the other landmarks by using coordinates of first landmark nodes
 def second_coordinates(first_coordinates, distances):
-	coordinates = np.random.rand(num_landmarks-initial, D)*2
+	coordinates = (np.random.rand(num_landmarks-initial, D))*2
 	return fmin(func=diff_second, x0=coordinates, args=(first_coordinates,distances,), xtol=xtol, ftol=ftol, maxfun=maxfun)
 
 
 def diff_regular_per_node(coordinates, landmark_coordinates, distances, nodenr):
-	difference = 0	
-	for i in np.arange(num_landmarks):
-		sums = (coordinates - landmark_coordinates[i,:])**2
-		euclid = math.sqrt(sum(sums))
-		difference += np.abs(distances[i] - euclid)
+	euclids = euclidean_distances(coordinates.reshape(1,-1), landmark_coordinates)
+	difference = np.abs(np.sum(euclids-distances))
 	return difference
 
 
 # Find coordinates of the regular ndoes by using coordinates of all landmark nodes
 def regular_coordinates(landmark_coordinates, distances, num_nodes):
-	coordinates = np.random.rand(num_nodes - num_landmarks, D)*3
+	coordinates = (np.random.rand(num_nodes - num_landmarks, D))*3
 	for i in np.arange(num_nodes - num_landmarks):
 		print("calibrating node:", i)
-		coordinates[i,:] = fmin(func=diff_regular_per_node, x0=coordinates[1,:], args=(landmark_coordinates,distances[:,i],i,), xtol=xtol, ftol=ftol, maxfun=maxfun, maxiter=maxiter)
+		coordinates[i,:] = fmin(func=diff_regular_per_node, x0=coordinates[i,:], args=(landmark_coordinates,distances[:,i],i,), xtol=xtol/10, ftol=ftol/10, maxfun=maxfun, maxiter=maxiter)
 	return coordinates
 
 def main():	
@@ -104,9 +96,6 @@ def main():
 											help='path to the file containing the network')
 	parser.add_argument('fout',
 											help='path to the .npy-file to write the labels')
-	parser.add_argument('--seed',
-											help='Random seed to be used',
-											default=42)
 	parser.add_argument('--xopt',
 											help='xopt to use in nelder-mead',
 											default=1)
@@ -114,9 +103,7 @@ def main():
 											help='fopt to use in nelder-mead',
 											default=1)
 	args = parser.parse_args()
-	
-	np.random.seed(args.seed)
-	
+		
 	G = nx.read_edgelist(args.fin)
 	tot_nodes = G.number_of_nodes()
 	tot_edges = G.number_of_edges()
@@ -128,12 +115,12 @@ def main():
 	
 	num_nodes = G.number_of_nodes()
 	num_edges = G.number_of_edges()
-	print("Succesfully loaded network with", num_nodes, "nodes and", num_edges, "edges.")
 	
 	mapping = dict(zip(connected_nodes, np.arange(num_nodes)))
-	print(mapping)
 	G = nx.relabel_nodes(G, mapping)
 	
+	print("Succesfully loaded network with", num_nodes, "nodes and", num_edges, "edges.")
+		
 	# Split the nodes in landmark nodes and regular nodes, and find the corresponding indices
 	landmarks, regular_nodes = choose_initial_landmarks(G)
 	landmark_indices = [int(landmark[0]) for landmark in landmarks]
@@ -141,7 +128,6 @@ def main():
 	
 	# Find the distance from each landmark nodes to all other nodes
 	all_distances = compute_landmark_distances(landmarks, num_nodes, G)
-	print(all_distances.shape)
 	landmark_distances, regular_distances = split_distances(all_distances, landmark_indices, regular_indices)
 	
 	# Start adding the nodes in three steps:
@@ -165,7 +151,7 @@ def main():
 	
 	np.save(args.fout, all_coordinates)
 	
-	print("preprocessing time:", time()-t)
+	print("preprocessing time:", time()-t, "seconds")
 
 
 if __name__ == "__main__":
