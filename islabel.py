@@ -183,8 +183,6 @@ def parse_args():
 	                    help=('provide this flag to interpret the ' +
 	                    'edgelist as a weighted network'),
 	                    action='store_true')
-	parser.add_argument('--seed',
-											help='Seed for the random number generator')
 	parser.add_argument('-sigma',
 											help='Parameter controlling when the hierarchy ' +
 											'generation terminates',
@@ -199,13 +197,9 @@ def main():
 	data = (('weight', float),)
 	if args.sigma == None:
 		args.sigma = 1.0
-	
-	if args.seed:
-		init_rand(seed)
-	else:
-		init_rand(0)
 		
 	if args.directed:
+		print("WARNING: Not implemented!")
 		if args.adjlist:
 			network = nx.read_adjlist(args.fin,
 																create_using=nx.DiGraph())
